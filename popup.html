@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <h3>UUID Hyperlink Converter</h3>
+    
+    <div class="environment-info">
+      <span id="currentEnv">Detecting environment...</span>
+    </div>
+    
+    <div class="form-group">
+      <label for="prodUrl">Production URL:</label>
+      <input type="text" id="prodUrl" placeholder="https://prod.example.com/item/">
+    </div>
+    
+    <div class="form-group">
+      <label for="stagingUrl">Staging URL:</label>
+      <input type="text" id="stagingUrl" placeholder="https://staging.example.com/item/">
+    </div>
+    
+    <div class="form-group">
+      <button id="saveBtn">Save Settings</button>
+      <button id="testBtn">Test Current Page</button>
+    </div>
+    
+    <div class="info">
+      <p><strong>How it works:</strong></p>
+      <ul>
+        <li>Automatically detects if current page is staging/production</li>
+        <li>Uses staging URL if page contains "stg" or "staging"</li>
+        <li>UUIDs become clickable links with appropriate environment URL</li>
+        <li>Staging links are orange, production links are blue</li>
+        <li>Select a UUID to open in new tab with environment detection</li>
+      </ul>
+    </div>
+    
+    <div id="status" class="status"></div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>

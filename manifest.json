@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "UUID Hyperlink Converter",
+  "version": "1.0",
+  "description": "Convert UUIDs on web pages into clickable hyperlinks",
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "UUID Hyperlink Converter"
+  }
+}
