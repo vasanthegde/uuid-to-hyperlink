@@ -314,7 +314,27 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
 });
 
 // Initialize when the script loads
-console.log('UUID Link Converter extension loaded'); // Debug log
+console.log('UUID Link Converter extension loaded on:', window.location.href); // Debug log
+console.log('Document readyState:', document.readyState);
+console.log('Content Security Policy:', document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.content || 'None');
+
+// Check if we're in an iframe
+if (window !== window.top) {
+    console.log('Extension running in iframe - this might cause issues');
+}
+
+// Check for common blocking factors
+const hasCSP = document.querySelector('meta[http-equiv="Content-Security-Policy"]') !== null;
+const isHTTPS = window.location.protocol === 'https:';
+const domain = window.location.hostname;
+
+console.log('Site analysis:', {
+    hasCSP,
+    isHTTPS,
+    domain,
+    isIframe: window !== window.top
+});
+
 loadSettings();
 
 // Also reprocess UUIDs when page fully loads
