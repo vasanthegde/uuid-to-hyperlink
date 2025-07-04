@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UUID Extension Test Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        
+        .uuid-text {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 3px;
+            margin: 10px 0;
+        }
+        
+        .side-panel {
+            display: none;
+            position: fixed;
+            right: 0;
+            top: 0;
+            width: 300px;
+            height: 100vh;
+            background: white;
+            box-shadow: -2px 0 5px rgba(0,0,0,0.1);
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        .side-panel.active {
+            display: block;
+        }
+        
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        
+        button:hover {
+            background-color: #0056b3;
+        }
+        
+        .close-panel {
+            background-color: #dc3545;
+            float: right;
+        }
+        
+        .dynamic-content {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e9ecef;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>UUID Extension Test Page</h1>
+    
+    <div class="section">
+        <h2>Static UUIDs in Main Page</h2>
+        <div class="uuid-text">
+            <p>Here are some UUIDs that should be converted to links:</p>
+            <p>UUID 1: 123e4567-e89b-12d3-a456-426614174000</p>
+            <p>UUID 2: 550e8400-e29b-41d4-a716-446655440000</p>
+            <p>Mixed text with UUID: The record with ID 6ba7b810-9dad-11d1-80b4-00c04fd430c8 was updated.</p>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>Dynamic Content Test</h2>
+        <button onclick="addDynamicContent()">Add Dynamic UUID Content</button>
+        <div id="dynamic-container"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Side Panel Test</h2>
+        <button onclick="toggleSidePanel()">Open Side Panel with UUIDs</button>
+        <button onclick="loadSidePanelContent()">Load Side Panel Content</button>
+    </div>
+    
+    <!-- Side Panel -->
+    <div id="sidePanel" class="side-panel">
+        <button class="close-panel" onclick="closeSidePanel()">×</button>
+        <h3>Side Panel</h3>
+        <div id="side-panel-content">
+            <p>Loading...</p>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>Extension Status</h2>
+        <p>Open browser console (F12) to see debug messages from the extension.</p>
+        <p>Make sure to configure the extension settings first:</p>
+        <ul>
+            <li>Staging URL: https://staging.example.com/</li>
+            <li>Production URL: https://example.com/</li>
+        </ul>
+    </div>
+
+    <script>
+        let dynamicCounter = 0;
+        
+        function addDynamicContent() {
+            dynamicCounter++;
+            const container = document.getElementById('dynamic-container');
+            const newContent = document.createElement('div');
+            newContent.className = 'dynamic-content';
+            newContent.innerHTML = `
+                <h4>Dynamic Content ${dynamicCounter}</h4>
+                <p>Dynamically added UUID: ${generateUUID()}</p>
+                <p>Another UUID: ${generateUUID()}</p>
+            `;
+            container.appendChild(newContent);
+        }
+        
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0;
+                const v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+        
+        function toggleSidePanel() {
+            const panel = document.getElementById('sidePanel');
+            panel.classList.add('active');
+            
+            // Add some UUIDs to the side panel
+            const content = document.getElementById('side-panel-content');
+            content.innerHTML = `
+                <p>Side panel UUIDs:</p>
+                <p>UUID A: 123e4567-e89b-12d3-a456-426614174000</p>
+                <p>UUID B: 550e8400-e29b-41d4-a716-446655440000</p>
+                <p>UUID C: 6ba7b810-9dad-11d1-80b4-00c04fd430c8</p>
+            `;
+        }
+        
+        function loadSidePanelContent() {
+            const panel = document.getElementById('sidePanel');
+            panel.classList.add('active');
+            
+            // Simulate delayed loading
+            const content = document.getElementById('side-panel-content');
+            content.innerHTML = '<p>Loading content...</p>';
+            
+            setTimeout(() => {
+                content.innerHTML = `
+                    <p>Delayed loaded UUIDs:</p>
+                    <p>Delayed UUID 1: ${generateUUID()}</p>
+                    <p>Delayed UUID 2: ${generateUUID()}</p>
+                    <p>More text with UUID: Record ${generateUUID()} needs attention.</p>
+                `;
+            }, 1000);
+        }
+        
+        function closeSidePanel() {
+            const panel = document.getElementById('sidePanel');
+            panel.classList.remove('active');
+        }
+        
+        // Test console output
+        console.log('Test page loaded');
+    </script>
+</body>
+</html>
