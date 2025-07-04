@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "UUID Hyperlink Converter",
+  "name": "UUID Link Converter",
   "version": "1.0",
-  "description": "Convert UUIDs on web pages into clickable hyperlinks",
+  "description": "Converts UUIDs to clickable hyperlinks with staging/prod URL handling",
   "permissions": [
     "activeTab",
     "storage"
@@ -16,6 +16,8 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "UUID Hyperlink Converter"
+    "default_title": "UUID Link Converter Settings"
+  },
+  "icons": {
   }
 }

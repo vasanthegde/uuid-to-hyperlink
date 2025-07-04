@@ -1,202 +1,345 @@
-// UUID regex pattern (matches standard UUID format)
-const UUID_REGEX = /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi;
-
-// URLs - will be loaded from storage
-let prodUrl = '';
+// Configuration
 let stagingUrl = '';
-let urlsLoaded = false;
+let prodUrl = '';
 
-// Function to determine if current page is staging
-function isCurrentPageStaging() {
-  const currentUrl = window.location.href.toLowerCase();
-  return currentUrl.includes('stg') || currentUrl.includes('staging');
-}
+// UUID regex pattern (standard UUID format)
+const uuidRegex = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
 
-// Function to get appropriate base URL
-function getBaseUrl() {
-  return isCurrentPageStaging() ? stagingUrl : prodUrl;
-}
+// Set to keep track of processed UUIDs to avoid duplicates
+const processedUUIDs = new Set();
 
-// Function to load URLs from storage
-function loadUrlsFromStorage() {
-  return new Promise((resolve) => {
-    chrome.storage.sync.get(['prodUrl', 'stagingUrl'], function(result) {
-      prodUrl = result.prodUrl || 'https://example.com/item/';
-      stagingUrl = result.stagingUrl || 'https://staging.example.com/item/';
-      urlsLoaded = true;
-      console.log('URLs loaded - Prod:', prodUrl, 'Staging:', stagingUrl);
-      resolve();
-    });
-  });
-}
-
-// Function to convert UUIDs to hyperlinks
-async function convertUuidsToLinks() {
-  // Ensure URLs are loaded before processing
-  if (!urlsLoaded) {
-    await loadUrlsFromStorage();
-  }
-
-  // Get all text nodes in the document
-  const walker = document.createTreeWalker(
-    document.body,
-    NodeFilter.SHOW_TEXT,
-    {
-      acceptNode: function(node) {
-        // Skip if parent is already a link or script/style tag
-        if (node.parentElement.tagName === 'A' || 
-            node.parentElement.tagName === 'SCRIPT' || 
-            node.parentElement.tagName === 'STYLE') {
-          return NodeFilter.FILTER_REJECT;
+// Load settings from storage
+function loadSettings() {
+    console.log('Loading settings...'); // Debug log
+    chrome.storage.sync.get(['stagingUrl', 'prodUrl'], function(result) {
+        stagingUrl = result.stagingUrl || '';
+        prodUrl = result.prodUrl || '';
+        
+        console.log('Settings loaded:', { stagingUrl, prodUrl }); // Debug log
+        
+        // Initialize UUID processing if settings are available
+        if (stagingUrl && prodUrl) {
+            console.log('Initializing UUID processing...'); // Debug log
+            initializeUUIDProcessing();
+        } else {
+            console.log('Settings not configured yet'); // Debug log
         }
-        return NodeFilter.FILTER_ACCEPT;
-      }
-    }
-  );
+    });
+}
 
-  const textNodes = [];
-  let node;
-  
-  // Collect all text nodes
-  while (node = walker.nextNode()) {
-    if (UUID_REGEX.test(node.textContent)) {
-      textNodes.push(node);
-    }
-  }
-
-  // Process each text node
-  textNodes.forEach(textNode => {
-    const text = textNode.textContent;
-    const matches = text.match(UUID_REGEX);
+// Initialize UUID processing
+function initializeUUIDProcessing() {
+    // Process existing UUIDs
+    processUUIDs();
     
-    if (matches) {
-      // Create a document fragment to hold the new content
-      const fragment = document.createDocumentFragment();
-      let lastIndex = 0;
-      
-      matches.forEach(uuid => {
-        const index = text.indexOf(uuid, lastIndex);
+    // Set up observers for dynamic content
+    setupObservers();
+}
+
+// Main function to process UUIDs
+function processUUIDs() {
+    console.log('Processing UUIDs...'); // Debug log
+    
+    // Find all text nodes containing UUIDs
+    const walker = document.createTreeWalker(
+        document.body,
+        NodeFilter.SHOW_TEXT,
+        {
+            acceptNode: function(node) {
+                // Skip if parent is already a link or script/style
+                if (node.parentNode.tagName === 'A' || 
+                    node.parentNode.tagName === 'SCRIPT' || 
+                    node.parentNode.tagName === 'STYLE' ||
+                    node.parentNode.tagName === 'NOSCRIPT') {
+                    return NodeFilter.FILTER_REJECT;
+                }
+                
+                // Skip if node is empty or just whitespace
+                if (!node.textContent || !node.textContent.trim()) {
+                    return NodeFilter.FILTER_REJECT;
+                }
+                
+                // Check if text contains UUID
+                const hasUUID = uuidRegex.test(node.textContent);
+                uuidRegex.lastIndex = 0; // Reset regex
+                
+                if (hasUUID) {
+                    console.log('Found UUID in text:', node.textContent); // Debug log
+                    return NodeFilter.FILTER_ACCEPT;
+                }
+                
+                return NodeFilter.FILTER_REJECT;
+            }
+        }
+    );
+    
+    const textNodes = [];
+    let node;
+    
+    while (node = walker.nextNode()) {
+        textNodes.push(node);
+    }
+    
+    console.log('Found text nodes with UUIDs:', textNodes.length); // Debug log
+    
+    // Process each text node
+    textNodes.forEach(processTextNode);
+}
+
+// Process individual text node
+function processTextNode(textNode) {
+    const text = textNode.textContent;
+    
+    // Check if text contains UUIDs
+    if (!uuidRegex.test(text)) {
+        return;
+    }
+    
+    // Reset regex
+    uuidRegex.lastIndex = 0;
+    
+    // Split text and rebuild with links
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+    
+    while ((match = uuidRegex.exec(text)) !== null) {
+        const uuid = match[0];
+        const matchIndex = match.index;
         
-        // Add text before the UUID
-        if (index > lastIndex) {
-          fragment.appendChild(document.createTextNode(text.substring(lastIndex, index)));
+        // Add text before UUID
+        if (matchIndex > lastIndex) {
+            parts.push({
+                type: 'text',
+                content: text.substring(lastIndex, matchIndex)
+            });
         }
         
-        // Create hyperlink for UUID
-        const currentBaseUrl = getBaseUrl();
-        const link = document.createElement('a');
-        link.href = currentBaseUrl + uuid;
-        link.textContent = uuid;
-        link.target = '_blank';
-        link.style.color = isCurrentPageStaging() ? '#ff6600' : '#0066cc';
-        link.style.textDecoration = 'underline';
-        link.title = `Click to open: ${currentBaseUrl}${uuid} (${isCurrentPageStaging() ? 'STAGING' : 'PROD'})`;
-        
-        // Add click event listener
-        link.addEventListener('click', function(e) {
-          e.preventDefault();
-          window.open(currentBaseUrl + uuid, '_blank');
+        // Add UUID as link
+        parts.push({
+            type: 'uuid',
+            content: uuid
         });
         
-        fragment.appendChild(link);
-        lastIndex = index + uuid.length;
-      });
-      
-      // Add remaining text after last UUID
-      if (lastIndex < text.length) {
-        fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
-      }
-      
-      // Replace the original text node with the fragment
-      textNode.parentNode.replaceChild(fragment, textNode);
+        lastIndex = matchIndex + uuid.length;
     }
-  });
-}
-
-// Function to handle text selection and conversion
-async function handleTextSelection() {
-  // Ensure URLs are loaded
-  if (!urlsLoaded) {
-    await loadUrlsFromStorage();
-  }
-
-  const selection = window.getSelection();
-  const selectedText = selection.toString().trim();
-  
-  if (selectedText && UUID_REGEX.test(selectedText)) {
-    const matches = selectedText.match(UUID_REGEX);
-    if (matches && matches.length === 1) {
-      const uuid = matches[0];
-      const currentBaseUrl = getBaseUrl();
-      const url = currentBaseUrl + uuid;
-      const environment = isCurrentPageStaging() ? 'STAGING' : 'PROD';
-      
-      // Show confirmation dialog
-      if (confirm(`Open UUID in new tab (${environment})?\n${url}`)) {
-        window.open(url, '_blank');
-      }
+    
+    // Add remaining text
+    if (lastIndex < text.length) {
+        parts.push({
+            type: 'text',
+            content: text.substring(lastIndex)
+        });
     }
-  }
-}
-
-// Initialize the extension
-async function initialize() {
-  // Load URLs first
-  await loadUrlsFromStorage();
-  
-  // Convert existing UUIDs on page load
-  await convertUuidsToLinks();
-  
-  // Add selection handler
-  document.addEventListener('mouseup', handleTextSelection);
-  
-  // Watch for dynamically added content
-  const observer = new MutationObserver(async function(mutations) {
-    mutations.forEach(async function(mutation) {
-      if (mutation.type === 'childList') {
-        mutation.addedNodes.forEach(function(node) {
-          if (node.nodeType === Node.ELEMENT_NODE) {
-            // Check if the added element contains UUIDs
-            const walker = document.createTreeWalker(
-              node,
-              NodeFilter.SHOW_TEXT,
-              null,
-              false
-            );
-            
-            let textNode;
-            while (textNode = walker.nextNode()) {
-              if (UUID_REGEX.test(textNode.textContent)) {
-                convertUuidsToLinks();
-                break;
-              }
+    
+    // Only proceed if we have multiple parts (meaning UUIDs were found)
+    if (parts.length > 1) {
+        // Create container span
+        const container = document.createElement('span');
+        
+        parts.forEach(part => {
+            if (part.type === 'text') {
+                container.appendChild(document.createTextNode(part.content));
+            } else if (part.type === 'uuid') {
+                const link = createUUIDLink(part.content);
+                container.appendChild(link);
+                processedUUIDs.add(part.content);
             }
-          }
         });
-      }
-    });
-  });
-  
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true
-  });
+        
+        // Replace the text node
+        textNode.parentNode.replaceChild(container, textNode);
+    }
 }
 
-// Listen for URL updates from popup
+// Create clickable link for UUID
+function createUUIDLink(uuid) {
+    const link = document.createElement('a');
+    link.textContent = uuid;
+    link.href = '#';
+    link.style.cssText = `
+        color: #007bff;
+        text-decoration: underline;
+        cursor: pointer;
+        background-color: #f8f9fa;
+        padding: 2px 4px;
+        border-radius: 3px;
+        border: 1px solid #dee2e6;
+    `;
+    
+    // Add click event listener
+    link.addEventListener('click', function(e) {
+        e.preventDefault();
+        handleUUIDClick(uuid);
+    });
+    
+    // Add hover effects
+    link.addEventListener('mouseenter', function() {
+        this.style.backgroundColor = '#e9ecef';
+        this.style.borderColor = '#adb5bd';
+    });
+    
+    link.addEventListener('mouseleave', function() {
+        this.style.backgroundColor = '#f8f9fa';
+        this.style.borderColor = '#dee2e6';
+    });
+    
+    return link;
+}
+
+// Handle UUID click
+function handleUUIDClick(uuid) {
+    if (!stagingUrl || !prodUrl) {
+        alert('Please configure the base URLs in the extension settings first.');
+        return;
+    }
+    
+    // Determine which URL to use based on current page
+    const currentUrl = window.location.href;
+    const baseUrl = isStaging(currentUrl) ? stagingUrl : prodUrl;
+    
+    // Ensure base URL ends with /
+    const normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl : baseUrl + '/';
+    
+    // Create full URL
+    const fullUrl = normalizedBaseUrl + uuid;
+    
+    // Open in new tab
+    window.open(fullUrl, '_blank');
+}
+
+// Check if current URL is staging
+function isStaging(url) {
+    const stagingKeywords = ['staging', 'stage', 'dev', 'development', 'test', 'qa'];
+    const urlLower = url.toLowerCase();
+    
+    return stagingKeywords.some(keyword => urlLower.includes(keyword));
+}
+
+// Set up observers for dynamic content
+function setupObservers() {
+    // MutationObserver for DOM changes
+    const observer = new MutationObserver(function(mutations) {
+        let shouldProcess = false;
+        
+        mutations.forEach(function(mutation) {
+            if (mutation.type === 'childList') {
+                mutation.addedNodes.forEach(function(node) {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        // Check if the added node or its descendants contain UUIDs
+                        const text = node.textContent || '';
+                        if (uuidRegex.test(text)) {
+                            shouldProcess = true;
+                        }
+                    }
+                });
+            }
+        });
+        
+        if (shouldProcess) {
+            // Delay processing to allow DOM to settle
+            setTimeout(processUUIDs, 100);
+        }
+    });
+    
+    // Start observing
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+    
+    // Also observe for side panel scenarios
+    observeSidePanels();
+}
+
+// Special handling for side panels
+function observeSidePanels() {
+    // Look for common side panel selectors
+    const sidePanel = document.querySelector('[class*="side"], [class*="panel"], [class*="drawer"], [id*="side"], [id*="panel"]');
+    
+    if (sidePanel) {
+        const sidePanelObserver = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                if (mutation.type === 'childList' || mutation.type === 'attributes') {
+                    // Check if side panel became visible
+                    const isVisible = sidePanel.offsetParent !== null;
+                    if (isVisible) {
+                        setTimeout(processUUIDs, 200);
+                    }
+                }
+            });
+        });
+        
+        sidePanelObserver.observe(sidePanel, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['style', 'class']
+        });
+    }
+    
+    // Also listen for button clicks that might trigger side panels
+    document.addEventListener('click', function(e) {
+        // Check if clicked element might trigger a side panel
+        const button = e.target.closest('button');
+        if (button) {
+            const buttonText = button.textContent.toLowerCase();
+            const buttonClass = button.className.toLowerCase();
+            
+            if (buttonText.includes('detail') || buttonText.includes('info') || 
+                buttonClass.includes('detail') || buttonClass.includes('info') ||
+                buttonClass.includes('side') || buttonClass.includes('panel')) {
+                
+                // Wait for potential side panel to load
+                setTimeout(processUUIDs, 500);
+            }
+        }
+    });
+}
+
+// Listen for messages from popup
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
-  if (request.action === 'updateUrls') {
-    prodUrl = request.prodUrl;
-    stagingUrl = request.stagingUrl;
-    urlsLoaded = true;
-    console.log('URLs updated from popup - Prod:', prodUrl, 'Staging:', stagingUrl);
-    sendResponse({success: true});
-  }
+    if (request.action === 'settingsUpdated') {
+        stagingUrl = request.stagingUrl;
+        prodUrl = request.prodUrl;
+        
+        // Clear processed UUIDs to reprocess with new settings
+        processedUUIDs.clear();
+        
+        // Reprocess UUIDs with new settings
+        processUUIDs();
+        
+        sendResponse({success: true});
+    }
 });
 
-// Start the extension when DOM is ready
+// Initialize when the script loads
+console.log('UUID Link Converter extension loaded'); // Debug log
+loadSettings();
+
+// Also reprocess UUIDs when page fully loads
+window.addEventListener('load', function() {
+    console.log('Page loaded, checking settings...'); // Debug log
+    if (stagingUrl && prodUrl) {
+        console.log('Settings available, processing UUIDs...'); // Debug log
+        setTimeout(processUUIDs, 1000);
+    } else {
+        console.log('Settings not available yet'); // Debug log
+    }
+});
+
+// Process immediately if DOM is already loaded
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initialize);
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM loaded, processing UUIDs...'); // Debug log
+        if (stagingUrl && prodUrl) {
+            setTimeout(processUUIDs, 500);
+        }
+    });
 } else {
-  initialize();
+    // DOM is already loaded
+    console.log('DOM already loaded, processing UUIDs...'); // Debug log
+    if (stagingUrl && prodUrl) {
+        setTimeout(processUUIDs, 100);
+    }
 }
